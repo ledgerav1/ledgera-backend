@@ -1,0 +1,8 @@
+/* Contract Suite (public/contract-suite.html) */
+
+/* Fix for Microsoft Edge warning: avoid inline styles in HTML */
+.contract-suite-calendly-widget {
+  min-width: 320px;
+  height: 700px;
+  display: block;
+}

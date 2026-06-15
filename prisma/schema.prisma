@@ -1,0 +1,570 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("client")
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model AuditLog {
+  id        String  @id @default(uuid())
+  userId    String?
+  companyId String?
+
+  action   String
+  entity   String
+  entityId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([action])
+  @@index([entity])
+}
+
+model StripeEvent {
+  id            String   @id @default(uuid())
+  stripeEventId String   @unique
+  type          String
+  processed     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([type])
+  @@index([processed])
+}
+
+// COMPANY
+model Company {
+  id   String @id @default(uuid())
+  name String
+
+  // "quickbooks" | "netsuite"
+  accountingSystem String @default("quickbooks")
+
+  // Stripe integration
+  stripeCustomerId   String? @unique
+  stripeSubId        String?
+  subscriptionTier   String?
+  subscriptionStatus String?
+
+  integrationCredentials IntegrationCredential[]
+
+  technicians         Technician[]
+  serviceTypes        ServiceType[]
+  jobs                Job[]
+  payments            Payment[]
+  contracts           Contract[]
+  invoices            Invoice[]
+  apiKeys             ApiKey[]
+  leakageScoreHistory LeakageScoreHistory[]
+  demoLeads           DemoLead[]
+  recoveryMetrics     RecoveryMetrics?
+  users               User[]
+
+  serviceTitanSyncRuns            ServiceTitanSyncRun[]
+  serviceTitanJobEvents           ServiceTitanJobEvent[]
+  serviceTitanTechnicianLocations ServiceTitanTechnicianLocation[]
+  serviceTitanJobPartUsages       ServiceTitanJobPartUsage[]
+
+  quickBooksExpenses     QuickBooksExpense[]
+  payrollExpenses        PayrollExpense[]
+  quickBooksArAps        QuickBooksArAp[]
+  quickBooksBankBalances QuickBooksBankBalance[]
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  callAttributions CallAttribution[]
+
+  @@index([stripeCustomerId])
+}
+
+// TECHNICIAN
+model Technician {
+  id   String @id @default(uuid())
+  name String
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  jobs Job[]
+
+  @@index([companyId])
+}
+
+// SERVICE TYPE
+model ServiceType {
+  id   String @id @default(uuid())
+  name String
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  jobs Job[]
+
+  @@index([companyId])
+}
+
+// JOB
+model Job {
+  id String @id @default(uuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  technicianId  String?
+  serviceTypeId String?
+
+  demoLeadId String?
+  demoLead   DemoLead? @relation(fields: [demoLeadId], references: [id], onDelete: Cascade)
+
+  invoicedAmount Float
+  cashCollected  Float @default(0)
+
+  laborCost    Float
+  materialCost Float
+
+  completedAt DateTime
+  startedAt   DateTime?
+  jobStatus   String?
+  phantom     Boolean   @default(false)
+
+  technician  Technician?  @relation(fields: [technicianId], references: [id])
+  serviceType ServiceType? @relation(fields: [serviceTypeId], references: [id])
+
+  payments Payment[]
+
+  createdAt        DateTime          @default(now())
+  callAttributions CallAttribution[]
+
+  @@index([companyId])
+}
+
+// PAYMENT
+model Payment {
+  id String @id @default(uuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  amount     Float
+  receivedAt DateTime
+  recovered  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([jobId])
+}
+
+// CONTRACT
+model Contract {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  planType          String
+  monthlyFee        Float
+  setupFee          Float
+  active            Boolean   @default(true)
+  signedAt          DateTime?
+  expiresAt         DateTime?
+  envelopeId        String
+  envelopeStatus    String
+  clientName        String
+  clientEmail       String
+  locationCount     Int
+  performanceKicker Boolean   @default(false)
+  signedPdfPath     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([envelopeId])
+}
+
+// INVOICE
+model Invoice {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  amount Float
+  status String @default("pending")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+}
+
+model IntegrationCredential {
+  id        String @id @default(uuid())
+  companyId String
+  provider  String // "servicetitan" | "quickbooks"
+
+  // Legacy CBC (existing)
+  accessToken  String
+  refreshToken String?
+
+  // New GCM (dual-write). Nullable to support existing legacy rows.
+  accessTokenIv     String?
+  accessTokenTag    String?
+  accessTokenCipher String?
+
+  refreshTokenIv     String?
+  refreshTokenTag    String?
+  refreshTokenCipher String?
+
+  expiresAt DateTime?
+
+  // Provider-specific context (e.g. ServiceTitan tenantId, QuickBooks realmId)
+  providerContext Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+}
+
+model LeakageScoreHistory {
+  id                  String   @id @default(uuid())
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  score               Float
+  signal              String
+  totalLeakage        Float
+  uncollectedRevenue  Float
+  underpricedServices Float
+  laborInefficiency   Float
+  createdAt           DateTime @default(now())
+
+  @@index([companyId])
+  @@index([createdAt])
+}
+
+model RecoveryMetrics {
+  id        String  @id @default(uuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id])
+
+  totalRecovered        Float @default(0)
+  totalRecoveryAttempts Int   @default(0)
+  successfulRecoveries  Int   @default(0)
+
+  firstRecoveryAt     DateTime?
+  averageRecoveryTime Float?
+
+  totalEBITDALift Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QuickBooksExpense {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  category   String // "payroll" | "rent" | "equipment" | "insurance"
+  externalId String
+
+  amount   Float
+  postedAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, category, externalId])
+  @@index([companyId])
+  @@index([postedAt])
+}
+
+model PayrollExpense {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // e.g. "gusto" | "adp" | "paychex" | "quickbooks"
+  provider String
+
+  // Provider-specific identifier for idempotent upserts.
+  externalId String
+
+  // Optional vendor category mapping (e.g. wages, benefits, taxes)
+  category String?
+
+  amount   Float
+  postedAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, provider, externalId])
+  @@index([companyId])
+  @@index([provider])
+  @@index([postedAt])
+}
+
+model QuickBooksArAp {
+  companyId String  @id
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  receivables Float @default(0)
+  payables    Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QuickBooksBankBalance {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  externalId  String
+  accountName String
+  balance     Float  @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, externalId])
+  @@index([companyId])
+}
+
+model DemoLead {
+  id                    String   @id @default(uuid())
+  name                  String
+  company               String
+  email                 String
+  revenueRange          String?
+  techCount             Int?
+  currentSoftware       String?
+  phoneNumber           String?
+  phoneNumberNormalized String?
+  bookingTime           DateTime
+  calendlyEventUri      String?
+  calendlyEventName     String?
+  zoomJoinUrl           String?
+  zoomHostUrl           String?
+  zoomMeetingId         String?
+  rawPayload            Json?
+
+  companyId  String?
+  companyRef Company? @relation(fields: [companyId], references: [id])
+
+  meetings  DemoMeeting[]
+  followUps DemoFollowUp[]
+  jobs      Job[]
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  callAttributions CallAttribution[]
+
+  @@index([email])
+  @@index([company])
+}
+
+model DemoMeeting {
+  id              String   @id @default(uuid())
+  leadId          String
+  lead            DemoLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  topic           String
+  startTime       DateTime
+  durationMinutes Int
+  joinUrl         String?
+  hostUrl         String?
+  zoomMeetingId   String?
+  rawPayload      Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([zoomMeetingId])
+}
+
+model DemoFollowUp {
+  id      String   @id @default(uuid())
+  leadId  String
+  lead    DemoLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  summary Json
+  status  String   @default("generated")
+
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+model ServiceTitanSyncRun {
+  id String @id @default(uuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  syncedAt DateTime @default(now())
+
+  jobCount       Int @default(0)
+  estimateCount  Int @default(0)
+  techHoursCount Int @default(0)
+  callbackCount  Int @default(0)
+
+  closeRateJson Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([syncedAt])
+}
+
+model ServiceTitanJobEvent {
+  id String @id @default(uuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // ServiceTitan’s external job id (we persist it as Job.id today)
+  jobExternalId String
+
+  eventType  String
+  occurredAt DateTime?
+
+  // Keep raw payload for audit/debug; webhook/expanded polling may evolve
+  payload Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([jobExternalId])
+  @@index([eventType])
+}
+
+model ServiceTitanTechnicianLocation {
+  id String @id @default(uuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Optional linkage for “real-time profitability per truck”
+  jobExternalId  String?
+  technicianName String?
+
+  occurredAt DateTime
+
+  latitude  Float?
+  longitude Float?
+
+  payload Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([occurredAt])
+}
+
+model ServiceTitanJobPartUsage {
+  id String @id @default(uuid())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  jobExternalId  String
+  partName       String
+  partExternalId String?
+
+  quantity  Float  @default(0)
+  unitCost  Float?
+  totalCost Float?
+
+  payload Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([jobExternalId])
+  @@index([partName])
+}
+
+// CALL TRACKING (CallRail/Twilio normalized events + attribution)
+model CallEvent {
+  id                String  @id @default(uuid())
+  provider          String
+  providerEventId   String? // e.g. CallRail call_id / Twilio CallSid (best-effort)
+  providerEventType String? // e.g. call_started/missed/answered
+
+  fromPhoneRaw String?
+  toPhoneRaw   String?
+
+  // Used for attribution to DemoLead.phoneNumberNormalized
+  fromPhoneNormalized String?
+
+  startedAt       DateTime?
+  endedAt         DateTime?
+  durationSeconds Int?
+
+  status String? // normalized: "missed" | "answered" | "completed" | ...
+
+  rawPayload Json
+
+  createdAt DateTime @default(now())
+
+  attribution CallAttribution?
+
+  @@index([provider])
+  @@index([providerEventType])
+  @@index([fromPhoneNormalized])
+  @@index([createdAt])
+}
+
+model CallAttribution {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  callEventId String    @unique
+  callEvent   CallEvent @relation(fields: [callEventId], references: [id], onDelete: Cascade)
+
+  demoLeadId String?
+  demoLead   DemoLead? @relation(fields: [demoLeadId], references: [id])
+
+  // Best-effort: attribute call to one concrete job.
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id])
+
+  // Snapshot metadata for auditing/debugging
+  attributedAt    DateTime @default(now())
+  attributionType String   @default("phone_to_demoLead_to_job")
+
+  @@index([companyId])
+  @@index([demoLeadId])
+  @@index([jobId])
+}

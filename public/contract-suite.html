@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ledgera Global — Contract Suite</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/contract-suite.css"/>
+  <style>
+    :root {
+      --gold:    #c9a800;
+      --gold-lt: #f0d84a;
+      --gold-dk: #9a7e00;
+      --ink:     #0a0a0a;
+      --paper:   #faf8f3;
+      --white:   #ffffff;
+      --light:   #e8e4d9;
+      --danger:  #c0392b;
+      --success: #1a7a2e;
+      --firma:   #4f46e5;
+      --firma-lt:#6366f1;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "DM Sans", sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+    .top-bar {
+      background: var(--ink);
+      padding: 16px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      border-bottom: 2px solid var(--gold);
+    }
+
+    .logo { font-family: "Playfair Display", serif; font-size: 19px; color: #fff; letter-spacing: 1px; }
+    .logo em { color: var(--gold); font-style: normal; }
+
+    .badge {
+      background: var(--firma);
+      color: #fff;
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 5px 14px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border-radius: 3px;
+    }
+
+    /* SETUP */
+    .setup-panel { background: #111; color: #fff; padding: 32px 48px; border-bottom: 3px solid var(--gold); }
+    .setup-panel h2 { font-family: "Playfair Display", serif; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 18px; }
+    .setup-grid { display: grid; grid-template-columns: 1.4fr 1.2fr 0.8fr 0.6fr auto; gap: 14px; align-items: end; }
+    .calendly-inline-wrapper { margin-top: 18px; display: flex; justify-content: center; }
+    .fg { display: flex; flex-direction: column; gap: 5px; position: relative; }
+    .fg label { font-size: 9.5px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #888; }
+    .fg input, .fg select { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.13); color: #fff; font-family: "DM Sans", sans-serif; font-size: 13.5px; padding: 10px 13px; outline: none; transition: border-color 0.2s; }
+    .fg input::placeholder { color: #555; }
+    .fg input:focus, .fg select:focus { border-color: var(--gold); background: rgba(255,255,255,0.1); }
+    .fg select option { background: #1a1a1a; color: #fff; }
+
+    .ac-list { position: absolute; top: 100%; left: 0; right: 0; background: #181818; border: 1px solid var(--gold); border-top: none; z-index: 300; max-height: 190px; overflow-y: auto; display: none; }
+    .ac-list.open { display: block; }
+    .ac-item { padding: 9px 13px; font-size: 12.5px; cursor: pointer; color: #ccc; border-bottom: 1px solid #222; transition: background 0.12s; }
+    .ac-item:hover, .ac-item.hl { background: rgba(201,168,0,0.18); color: var(--gold); }
+    .ac-item .ac-sub { font-size: 10.5px; color: #666; margin-top: 2px; }
+
+    .apply-btn { background: var(--gold); color: var(--ink); font-family: "DM Sans", sans-serif; font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 11px 22px; border: none; cursor: pointer; white-space: nowrap; transition: background 0.18s, transform 0.1s; }
+    .apply-btn:hover { background: var(--gold-lt); transform: translateY(-1px); }
+
+    /* TABS */
+    .doc-tabs { background: var(--ink); display: flex; border-bottom: 3px solid var(--gold); overflow-x: auto; }
+    .doc-tab { padding: 14px 28px; font-family: "DM Sans", sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #666; cursor: pointer; border: none; background: none; white-space: nowrap; border-bottom: 3px solid transparent; margin-bottom: -3px; transition: color 0.2s, border-color 0.2s; }
+    .doc-tab:hover { color: #aaa; }
+    .doc-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+    .doc-tab .tab-label { display: block; }
+    .doc-tab .tab-sub { font-size: 9px; color: #555; margin-top: 2px; letter-spacing: 0.5px; font-weight: 400; }
+    .doc-tab.active .tab-sub { color: var(--gold-dk); }
+
+    /* CONTRACT */
+    .contract-wrap { max-width: 920px; margin: 36px auto 64px; background: var(--white); box-shadow: 0 8px 56px rgba(0,0,0,0.10); border-top: 4px solid var(--gold); }
+    .doc-section { display: none; }
+    .doc-section.active { display: block; }
+
+    .masthead { background: var(--ink); color: #fff; text-align: center; padding: 44px 64px 34px; }
+    .masthead .doc-type { font-family: "DM Mono", monospace; font-size: 9.5px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+    .masthead h1 { font-family: "Playfair Display", serif; font-size: 24px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px; }
+    .masthead .msub { font-size: 11px; color: #777; letter-spacing: 1.5px; text-transform: uppercase; }
+    .masthead .eff { margin-top: 14px; font-size: 12.5px; color: var(--gold); }
+
+    .cbody { padding: 52px 64px; }
+    .intro { font-size: 11.5pt; line-height: 1.9; margin-bottom: 36px; color: #333; }
+
+    .live-name { display: inline-block; color: var(--gold); border-bottom: 2px dashed var(--gold); min-width: 180px; padding: 0 3px; cursor: text; outline: none; transition: background 0.18s; }
+    .live-name:focus { background: rgba(201,168,0,0.07); }
+    .live-name:empty:before { content: attr(data-ph); color: #bbb; font-style: italic; }
+
+    .sec { margin-bottom: 28px; }
+    .sec h2 { font-family: "DM Sans", sans-serif; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 2.5px; color: var(--ink); border-bottom: 2px solid var(--gold); padding-bottom: 6px; margin-bottom: 13px; }
+    .sec p { font-size: 10.5pt; line-height: 1.88; color: #3a3a3a; margin-bottom: 9px; }
+    .sec ul { margin: 8px 0 10px 20px; }
+    .sec ul li { font-size: 10.5pt; line-height: 1.8; color: #3a3a3a; margin-bottom: 4px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 10pt; margin: 12px 0; }
+    th { background: var(--ink); color: #fff; padding: 9px 15px; text-align: left; font-size: 9.5pt; font-weight: 600; }
+    td { padding: 9px 15px; border-bottom: 1px solid #eee; color: #444; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    .highlight-box { background: #fdfaee; border-left: 4px solid var(--gold); padding: 14px 18px; margin: 10px 0; font-size: 10.5pt; line-height: 1.75; color: #333; }
+    .notice-box { background: #f0f4fd; border-left: 4px solid #3a6bc9; padding: 14px 18px; margin: 10px 0; font-size: 10.5pt; line-height: 1.75; color: #333; }
+
+    .sig-section { margin-top: 48px; padding-top: 32px; border-top: 2px solid var(--light); display: grid; grid-template-columns: 1fr 1fr; gap: 52px; }
+    .sig-block h3 { font-family: "Playfair Display", serif; font-size: 13pt; margin-bottom: 3px; }
+    .sig-block .party { font-size: 9pt; color: #888; margin-bottom: 26px; }
+    .sig-line { border-top: 1px solid #bbb; padding-top: 6px; font-size: 9pt; color: #777; margin-bottom: 15px; }
+
+    .sign-zone { margin-top: 40px; padding-top: 32px; border-top: 2px solid var(--light); }
+    .sign-zone p { font-size: 10pt; color: #888; text-align: center; margin-bottom: 16px; line-height: 1.6; }
+
+    .sign-btn { display: block; width: 100%; background: var(--ink); color: #fff; font-family: "DM Sans", sans-serif; font-size: 12.5pt; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; padding: 19px; border: 2px solid var(--ink); cursor: pointer; position: relative; overflow: hidden; transition: color 0.25s; }
+    .sign-btn::after { content: ""; position: absolute; inset: 0; background: var(--firma); transform: scaleX(0); transform-origin: left; transition: transform 0.3s ease; z-index: 0; }
+    .sign-btn span { position: relative; z-index: 1; }
+    .sign-btn:hover::after { transform: scaleX(1); }
+    .sign-btn:hover { color: #fff; }
+    .sign-btn:disabled { background: #ccc; border-color: #ccc; cursor: not-allowed; }
+    .sign-btn:disabled::after { display: none; }
+
+    .status-bar { background: #eef8ee; border: 1px solid #9fd09f; color: var(--success); font-size: 11.5pt; padding: 14px 22px; text-align: center; margin-top: 18px; display: none; }
+    .error-bar { background: #fdf0f0; border: 1px solid #f5c6cb; color: var(--danger); font-size: 11.5pt; padding: 14px 22px; text-align: center; margin-top: 14px; display: none; }
+
+    .firma-link { display: none; margin-top: 14px; text-align: center; }
+    .firma-link a { display: inline-block; background: var(--firma); color: #fff; font-family: "DM Sans", sans-serif; font-size: 11.5pt; font-weight: 600; padding: 12px 28px; text-decoration: none; letter-spacing: 1px; border-radius: 3px; transition: background 0.2s; }
+    .firma-link a:hover { background: var(--firma-lt); }
+
+    .cfooter { background: var(--ink); color: #555; padding: 20px 64px; font-size: 8.5pt; text-align: center; line-height: 1.7; }
+    .cfooter strong { color: #888; }
+
+    /* MODAL */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.72); z-index: 500; display: none; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #fff; max-width: 520px; width: 92%; padding: 42px; box-shadow: 0 28px 90px rgba(0,0,0,0.45); border-top: 4px solid var(--firma); animation: slideUp 0.22s ease; }
+    @keyframes slideUp { from { transform: translateY(28px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal h2 { font-family: "Playfair Display", serif; font-size: 19px; margin-bottom: 6px; }
+    .modal .msub { font-size: 11.5px; color: #888; margin-bottom: 22px; line-height: 1.5; }
+
+    .firma-badge { display: flex; align-items: center; gap: 10px; background: #f0f0ff; border: 1px solid #c7c7f9; padding: 10px 14px; margin-bottom: 22px; font-size: 12px; color: var(--firma); font-weight: 600; border-radius: 3px; }
+    .firma-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--firma); flex-shrink: 0; }
+
+    .mf { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+    .mf label { font-size: 9.5px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #777; }
+    .mf input, .mf select { border: 1px solid #ccc; padding: 11px 13px; font-family: "DM Sans", sans-serif; font-size: 13.5px; outline: none; transition: border-color 0.18s; }
+    .mf input:focus { border-color: var(--firma); }
+    .mf-readonly { background: #f8f8f8; color: #777; }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 6px; }
+    .mc { flex: 1; background: var(--firma); color: #fff; font-family: "DM Sans", sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 13px; border: none; cursor: pointer; transition: background 0.18s; border-radius: 2px; }
+    .mc:hover { background: var(--firma-lt); }
+    .mc:disabled { background: #ccc; cursor: not-allowed; }
+    .mcancel { padding: 13px 18px; background: none; border: 1px solid #ccc; font-family: "DM Sans", sans-serif; font-size: 12.5px; color: #888; cursor: pointer; transition: border-color 0.18s; }
+    .mcancel:hover { border-color: var(--ink); color: var(--ink); }
+    .merr { background: #fdf0f0; border: 1px solid #f5c6cb; color: var(--danger); font-size: 11.5px; padding: 9px 13px; margin-top: 10px; display: none; }
+
+    @media (max-width: 720px) {
+      .setup-grid { grid-template-columns: 1fr 1fr; }
+      .cbody { padding: 30px 22px; }
+      .masthead { padding: 32px 22px; }
+      .sig-section { grid-template-columns: 1fr; }
+      .top-bar { padding: 14px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="logo">Ledgera <em>Global</em></div>
+  <div class="badge">&#9679; Firma.dev E-Signature</div>
+</div>
+
+<div class="setup-panel">
+  <h2>Configure Agreement</h2>
+  <div class="setup-grid">
+    <div class="fg">
+      <label>Client Company</label>
+      <input type="text" id="companyInput" placeholder="Type or select company…" autocomplete="off"
+        oninput="onCI()" onfocus="onCF()" onblur="onCB()" onkeydown="onCK(event)"/>
+      <div class="ac-list" id="acList"></div>
+    </div>
+    <div class="fg">
+      <label>Client Email</label>
+      <input type="email" id="emailInput" placeholder="client@company.com"/>
+    </div>
+    <div class="fg">
+      <label for="stateInput">State</label>
+      <select id="stateInput" aria-label="State">
+        <option>Delaware</option><option>Texas</option><option>California</option>
+        <option>Florida</option><option>New York</option><option>Illinois</option>
+        <option>Georgia</option><option>Ohio</option><option>Pennsylvania</option>
+        <option>North Carolina</option><option>Arizona</option><option>Washington</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label for="locInput">Locations</label>
+      <input type="number" id="locInput" value="1" min="1" max="50" aria-label="Locations"/>
+    </div>
+    <button class="apply-btn" onclick="applySetup()">Apply &rarr;</button>
+  </div>
+
+  <div class="calendly-inline-wrapper">
+    <!-- Calendly inline widget begin -->
+    <div class="calendly-inline-widget contract-suite-calendly-widget" data-url="https://calendly.com/hello-ledgeraglobal"></div>
+    <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
+    <!-- Calendly inline widget end -->
+  </div>
+</div>
+
+<div class="doc-tabs">
+  <button class="doc-tab active" onclick="switchTab('msa',this)">
+    <span class="tab-label">MSA</span><span class="tab-sub">Master Service Agreement</span>
+  </button>
+  <button class="doc-tab" onclick="switchTab('nda',this)">
+    <span class="tab-label">NDA</span><span class="tab-sub">Non-Disclosure Agreement</span>
+  </button>
+  <button class="doc-tab" onclick="switchTab('loi',this)">
+    <span class="tab-label">LOI</span><span class="tab-sub">Letter of Intent</span>
+  </button>
+  <button class="doc-tab" onclick="switchTab('iou',this)">
+    <span class="tab-label">IU</span><span class="tab-sub">Institutional Understanding</span>
+  </button>
+</div>
+
+<div class="contract-wrap">
+
+  <!-- MSA -->
+  <div class="doc-section active" id="sec-msa">
+    <div class="masthead">
+      <div class="doc-type">Document 1 of 4</div>
+      <h1>Master Service Agreement</h1>
+      <div class="msub">Ledgera Global, Inc. &middot; Order Form & Service Schedule</div>
+      <div class="eff" id="msa-date">Effective Date: —</div>
+    </div>
+    <div class="cbody">
+      <p class="intro">This Master Service Agreement (<strong>"Agreement"</strong>) is entered into as of <strong id="msa-intro-date">—</strong> by and between <strong>Ledgera Global, Inc.</strong>, a Delaware C-Corporation (<strong>"Service Provider"</strong>), and <strong class="live-name" id="msa-client" contenteditable="true" spellcheck="false" data-ph="Click to enter client name" oninput="syncName('msa')" onblur="syncName('msa')"></strong>, a <strong id="msa-state">—</strong> corporation (<strong>"Client"</strong>).</p>
+      <div class="sec"><h2>1. Scope of Services</h2><p>Service Provider shall provide accounting, reporting, financial management, and margin/recovery intelligence services to Client across all Locations in Exhibit A. Additional Locations incur a Setup Fee of $2,500 and Monthly Fee of $1,250 per Location.</p></div>
+      <div class="sec"><h2>2. Term</h2><p><strong>Initial Term:</strong> 12 months from Effective Date. Automatically renews month-to-month unless either party provides 30 days' written notice of non-renewal.</p></div>
+      <div class="sec"><h2>3. Fees & Payment (Net 15)</h2>
+        <table><tr><th>Fee Type</th><th>Per Location</th><th id="msa-loc-header">1 Location Total</th></tr>
+        <tr><td>Setup Fee (due at execution)</td><td>$2,500</td><td id="msa-setup">$2,500</td></tr>
+        <tr><td>Monthly Fee (invoiced in advance)</td><td>$1,250</td><td id="msa-monthly">$1,250/mo</td></tr></table>
+        <p>Payment due within 15 days of invoice. Late payments accrue 1.5% interest per month.</p></div>
+      <div class="sec"><h2>4. Early Termination</h2><p>Early termination without cause: greater of 50% of remaining Monthly Fees or $5,000 minimum.</p></div>
+      <div class="sec"><h2>5. Confidentiality & Data Security</h2><p>Both parties maintain strict confidentiality. Service Provider employs encrypted databases, role-based access controls, and full transaction logging.</p></div>
+      <div class="sec"><h2>6. Limitation of Liability</h2><p>Limited to direct damages not exceeding total fees paid in the 12 months preceding the claim. No liability for indirect, consequential, or punitive damages.</p></div>
+      <div class="sec"><h2>7. Indemnification</h2><p>Each party indemnifies the other from third-party claims arising from its own breach or negligence.</p></div>
+      <div class="sec"><h2>8. Force Majeure</h2><p>Neither party liable for delays caused by events beyond reasonable control. Affected party must provide prompt written notice.</p></div>
+      <div class="sec"><h2>9. Governing Law & Dispute Resolution</h2><p>Governed by the laws of the State of <strong id="msa-sc1">—</strong>. Good-faith mediation required before litigation.</p></div>
+      <div class="sec"><h2>10. Amendments & Miscellaneous</h2><p>Amendments must be in writing and signed by both parties. Client may not assign without prior written consent. Severability applies.</p></div>
+      <div class="sec"><h2>Exhibit A – Locations</h2><table><tr><th>Location</th><th>Address</th><th>Setup Fee</th><th>Monthly Fee</th></tr><tr><td>Location 1</td><td>—</td><td>$2,500</td><td>$1,250</td></tr></table></div>
+      <div class="sec"><h2>Exhibit B – SLA</h2><table>
+        <tr><th>Metric</th><th>Target</th></tr>
+        <tr><td>Response Time</td><td><24 hours (critical)</td></tr>
+        <tr><td>Reporting</td><td>Monthly</td></tr>
+        <tr><td>Uptime</td><td>99%</td></tr>
+        <tr><td>Recovery Reporting</td><td>All recovered $ tracked monthly</td></tr>
+        <tr><td>Margin Leakage Alerts</td><td>Within 48 hours</td></tr>
+        <tr><td>EBITDA / KPI Tracking</td><td>Monthly, SEC-grade audit trail</td></tr>
+        <tr><td>Security</td><td>SOC 2 / ISO readiness; logs retained</td></tr>
+      </table></div>
+      <div class="sig-section">
+        <div class="sig-block"><h3>Ledgera Global, Inc.</h3><div class="party">Service Provider &middot; Delaware C-Corp</div><div class="sig-line">Authorized Signature</div><div class="sig-line">Printed Name</div><div class="sig-line">Title</div><div class="sig-line">Date: <span id="msa-sig-date">—</span></div></div>
+        <div class="sig-block"><h3 id="msa-sig-client">Client</h3><div class="party" id="msa-sig-party">Client &middot; Corporation</div><div class="sig-line">Client Signature</div><div class="sig-line">Printed Name</div><div class="sig-line">Title</div><div class="sig-line">Date</div></div>
+      </div>
+      <div class="sign-zone">
+        <p>By clicking below, a PDF will be generated and sent to the client via <strong>Firma.dev</strong> for legally binding e-signature.</p>
+        <button class="sign-btn" id="msaSignBtn" onclick="openModal('msa')"><span>&#9997;&nbsp; Send MSA via Firma.dev</span></button>
+        <div class="status-bar" id="msa-status"></div>
+        <div class="firma-link" id="msa-firma-link"><a href="#" target="_blank">&#128279; Open Signing Link in Firma.dev</a></div>
+        <div class="error-bar" id="msa-error"></div>
+      </div>
+    </div>
+    <div class="cfooter">Ledgera Global, Inc. &nbsp;&middot;&nbsp; Firma.dev E-Signature &nbsp;&middot;&nbsp; ESIGN & UETA Compliant &nbsp;&middot;&nbsp; <strong id="msa-footer-email">Enter client email above</strong></div>
+  </div>
+
+  <!-- NDA -->
+  <div class="doc-section" id="sec-nda">
+    <div class="masthead"><div class="doc-type">Document 2 of 4</div><h1>Non-Disclosure Agreement</h1><div class="msub">Mutual Confidentiality &middot; Ledgera Global, Inc.</div><div class="eff" id="nda-date">Effective Date: —</div></div>
+    <div class="cbody">
+      <p class="intro">This Mutual Non-Disclosure Agreement (<strong>"NDA"</strong>) is entered into as of <strong id="nda-intro-date">—</strong> between <strong>Ledgera Global, Inc.</strong> (<strong>"Ledgera"</strong>) and <strong class="live-name" id="nda-client" contenteditable="true" spellcheck="false" data-ph="Click to enter client name" oninput="syncName('nda')" onblur="syncName('nda')"></strong> (<strong>"Recipient"</strong>).</p>
+      <div class="notice-box"><strong>Purpose:</strong> The Parties wish to explore a potential business relationship. Each Party may disclose confidential and proprietary information to the other.</div>
+      <div class="sec"><h2>1. Confidential Information</h2><p>Includes business plans, financial data, proprietary software, client lists, trade secrets, and all non-public information shared between the Parties.</p></div>
+      <div class="sec"><h2>2. Obligations</h2><p>Each Party shall hold all Confidential Information in strict confidence and use it solely for evaluating a potential business relationship.</p></div>
+      <div class="sec"><h2>3. Term</h2><p>Three (3) years from Effective Date. Trade secret obligations survive indefinitely.</p></div>
+      <div class="sec"><h2>4. Return or Destruction</h2><p>Upon request, each Party shall return or certifiably destroy all Confidential Information within 10 business days.</p></div>
+      <div class="sec"><h2>5. Remedies</h2><p>Breach may cause irreparable harm. Either Party may seek injunctive relief without posting bond.</p></div>
+      <div class="sec"><h2>6. Governing Law</h2><p>Governed by the laws of the State of <strong id="nda-state">—</strong>.</p></div>
+      <div class="sig-section">
+        <div class="sig-block"><h3>Ledgera Global, Inc.</h3><div class="party">Disclosing Party &middot; Delaware C-Corp</div><div class="sig-line">Authorized Signature</div><div class="sig-line">Printed Name / Title</div><div class="sig-line">Date: <span id="nda-sig-date">—</span></div></div>
+        <div class="sig-block"><h3 id="nda-sig-client">Recipient</h3><div class="party" id="nda-sig-party">Recipient &middot; Corporation</div><div class="sig-line">Authorized Signature</div><div class="sig-line">Printed Name / Title</div><div class="sig-line">Date</div></div>
+      </div>
+      <div class="sign-zone">
+        <p>Send this NDA for mutual e-signature via <strong>Firma.dev</strong>. Both parties receive a signed copy upon completion.</p>
+        <button class="sign-btn" id="ndaSignBtn" onclick="openModal('nda')"><span>&#9997;&nbsp; Send NDA via Firma.dev</span></button>
+        <div class="status-bar" id="nda-status"></div>
+        <div class="firma-link" id="nda-firma-link"><a href="#" target="_blank">&#128279; Open Signing Link in Firma.dev</a></div>
+        <div class="error-bar" id="nda-error"></div>
+      </div>
+    </div>
+    <div class="cfooter">Ledgera Global, Inc. &nbsp;&middot;&nbsp; Mutual NDA &nbsp;&middot;&nbsp; Firma.dev E-Signature &nbsp;&middot;&nbsp; <strong id="nda-footer-email">Enter client email above</strong></div>
+  </div>
+
+  <!-- LOI -->
+  <div class="doc-section" id="sec-loi">
+    <div class="masthead"><div class="doc-type">Document 3 of 4</div><h1>Letter of Intent</h1><div class="msub">Preliminary Agreement &middot; Ledgera Global, Inc.</div><div class="eff" id="loi-date">Effective Date: —</div></div>
+    <div class="cbody">
+      <p class="intro">This Letter of Intent (<strong>"LOI"</strong>) is submitted as of <strong id="loi-intro-date">—</strong> by <strong>Ledgera Global, Inc.</strong> to <strong class="live-name" id="loi-client" contenteditable="true" spellcheck="false" data-ph="Click to enter client name" oninput="syncName('loi')" onblur="syncName('loi')"></strong> (<strong>"Prospective Client"</strong>).</p>
+      <div class="highlight-box"><strong>Note:</strong> This LOI is non-binding except Sections 4 (Confidentiality), 5 (Exclusivity), and 6 (Governing Law).</div>
+      <div class="sec"><h2>1. Proposed Services</h2><ul><li>Real-time financial reporting and margin intelligence</li><li>Cash recovery tracking and AR optimization</li><li>EBITDA analysis and KPI dashboards</li><li>SEC-grade audit trail and recordkeeping</li><li>Multi-location financial consolidation</li></ul></div>
+      <div class="sec"><h2>2. Proposed Commercial Terms</h2><table><tr><th>Item</th><th>Proposed Term</th></tr><tr><td>Setup Fee</td><td>$2,500/location</td></tr><tr><td>Monthly Fee</td><td>$1,250/location</td></tr><tr><td>Initial Term</td><td>12 months</td></tr><tr><td>Payment Terms</td><td>Net 15</td></tr><tr><td>Performance Kicker (optional)</td><td>5% of verified recovered cash, quarterly</td></tr></table></div>
+      <div class="sec"><h2>3. Proposed Timeline</h2><table><tr><th>Milestone</th><th>Target</th></tr><tr><td>NDA Execution</td><td>Within 3 business days</td></tr><tr><td>Due Diligence</td><td>Within 10 business days</td></tr><tr><td>MSA Execution</td><td>Within 20 business days</td></tr><tr><td>Onboarding</td><td>Within 5 business days of MSA</td></tr></table></div>
+      <div class="sec"><h2>4. Confidentiality (Binding)</h2><p>All discussions and proposed terms shall be kept strictly confidential for two (2) years.</p></div>
+      <div class="sec"><h2>5. Exclusivity (Binding)</h2><p>For 30 days from this LOI, Prospective Client shall not negotiate with competing platforms without prior written consent from Ledgera.</p></div>
+      <div class="sec"><h2>6. Governing Law (Binding)</h2><p>Binding provisions governed by the laws of the State of <strong id="loi-state">—</strong>.</p></div>
+      <div class="sec"><h2>7. No Obligation</h2><p>Except as stated in Sections 4–6, this LOI creates no binding obligation. Either party may withdraw at any time.</p></div>
+      <div class="sig-section">
+        <div class="sig-block"><h3>Ledgera Global, Inc.</h3><div class="party">Proposing Party &middot; Delaware C-Corp</div><div class="sig-line">Authorized Signature</div><div class="sig-line">Printed Name / Title</div><div class="sig-line">Date: <span id="loi-sig-date">—</span></div></div>
+        <div class="sig-block"><h3 id="loi-sig-client">Prospective Client</h3><div class="party" id="loi-sig-party">Prospective Client &middot; Corporation</div><div class="sig-line">Authorized Signature</div><div class="sig-line">Printed Name / Title</div><div class="sig-line">Date</div></div>
+      </div>
+      <div class="sign-zone">
+        <p>Send this LOI for acknowledgment via <strong>Firma.dev</strong>.</p>
+        <button class="sign-btn" id="loiSignBtn" onclick="openModal('loi')"><span>&#9997;&nbsp; Send LOI via Firma.dev</span></button>
+        <div class="status-bar" id="loi-status"></div>
+        <div class="firma-link" id="loi-firma-link"><a href="#" target="_blank">&#128279; Open Signing Link in Firma.dev</a></div>
+        <div class="error-bar" id="loi-error"></div>
+      </div>
+    </div>
+    <div class="cfooter">Ledgera Global, Inc. &nbsp;&middot;&nbsp; Letter of Intent &nbsp;&middot;&nbsp; Non-binding except Sections 4–6 &nbsp;&middot;&nbsp; <strong id="loi-footer-email">Enter client email above</strong></div>
+  </div>
+
+  <!-- IOU -->
+  <div class="doc-section" id="sec-iou">
+    <div class="masthead"><div class="doc-type">Document 4 of 4</div><h1>Institutional Understanding</h1><div class="msub">Operational Framework &middot; Ledgera Global, Inc.</div><div class="eff" id="iou-date">Effective Date: —</div></div>
+    <div class="cbody">
+      <p class="intro">This Institutional Understanding (<strong>"IU"</strong>) is established as of <strong id="iou-intro-date">—</strong> between <strong>Ledgera Global, Inc.</strong> and <strong class="live-name" id="iou-client" contenteditable="true" spellcheck="false" data-ph="Click to enter client name" oninput="syncName('iou')" onblur="syncName('iou')"></strong> (<strong>"Institution"</strong>).</p>
+      <div class="notice-box"><strong>Purpose:</strong> This IU supplements the MSA and establishes the shared values, operational protocols, and governance framework governing day-to-day collaboration.</div>
+      <div class="sec"><h2>1. Shared Values</h2><ul><li><strong>Transparency:</strong> All data and communications shall be accurate and timely.</li><li><strong>Integrity:</strong> Neither Party shall misrepresent data or act in bad faith.</li><li><strong>Accountability:</strong> Each Party accepts responsibility for its obligations.</li><li><strong>Collaboration:</strong> Parties will work cooperatively to optimize outcomes.</li><li><strong>Compliance:</strong> Both Parties operate in accordance with applicable laws.</li></ul></div>
+      <div class="sec"><h2>2. Points of Contact</h2><table><tr><th>Role</th><th>Ledgera Global</th><th id="iou-poc-header">Institution</th></tr><tr><td>Primary Contact</td><td>Account Manager</td><td>Operations Lead</td></tr><tr><td>Financial Escalation</td><td>CFO / Finance Lead</td><td>Controller / CFO</td></tr><tr><td>Technical Support</td><td>Platform Support</td><td>IT / Systems Admin</td></tr><tr><td>Executive Escalation</td><td>CEO</td><td>CEO / Owner</td></tr></table></div>
+      <div class="sec"><h2>3. Data Governance</h2><ul><li>All data processed per CCPA/GDPR where applicable</li><li>Encrypted, access-controlled environments</li><li>Financial records retained for 7 years minimum</li><li>Data breach notification within 72 hours</li><li>Client data never sold or monetized</li></ul></div>
+      <div class="sec"><h2>4. Reporting Standards</h2><table><tr><th>Report</th><th>Frequency</th><th>Delivery</th></tr><tr><td>Cash Flow & Recovery</td><td>Monthly</td><td>Dashboard + Email</td></tr><tr><td>EBITDA & Margin</td><td>Monthly</td><td>Dashboard</td></tr><tr><td>KPI Summary</td><td>Monthly</td><td>Email</td></tr><tr><td>Audit Trail Export</td><td>On Request</td><td>Secure Download</td></tr><tr><td>Executive Summary</td><td>Quarterly</td><td>Meeting + Report</td></tr></table></div>
+      <div class="sec"><h2>5. Escalation Protocol</h2><ul><li><strong>Level 1:</strong> Direct contacts — 3 business days</li><li><strong>Level 2:</strong> Financial/Operations leads — 7 business days</li><li><strong>Level 3:</strong> Executive escalation — 14 business days</li><li><strong>Level 4:</strong> Formal mediation per MSA</li></ul></div>
+      <div class="sec"><h2>6. Review & Amendment</h2><p>Reviewed annually. Amendments effective upon written agreement. In conflict with MSA, the MSA governs.</p></div>
+      <div class="highlight-box"><strong>Commitment Statement:</strong> By executing this IU, both Parties affirm their commitment to a transparent, accountable, and high-integrity working relationship.</div>
+      <div class="sig-section">
+        <div class="sig-block"><h3>Ledgera Global, Inc.</h3><div class="party">Service Provider &middot; Delaware C-Corp</div><div class="sig-line">Authorized Signature</div><div class="sig-line">Printed Name / Title</div><div class="sig-line">Date: <span id="iou-sig-date">—</span></div></div>
+        <div class="sig-block"><h3 id="iou-sig-client">Institution</h3><div class="party" id="iou-sig-party">Institution &middot; Corporation</div><div class="sig-line">Authorized Signature</div><div class="sig-line">Printed Name / Title</div><div class="sig-line">Date</div></div>
+      </div>
+      <div class="sign-zone">
+        <p>Send this Institutional Understanding for signature via <strong>Firma.dev</strong>.</p>
+        <button class="sign-btn" id="iouSignBtn" onclick="openModal('iou')"><span>&#9997;&nbsp; Send IU via Firma.dev</span></button>
+        <div class="status-bar" id="iou-status"></div>
+        <div class="firma-link" id="iou-firma-link"><a href="#" target="_blank">&#128279; Open Signing Link in Firma.dev</a></div>
+        <div class="error-bar" id="iou-error"></div>
+      </div>
+    </div>
+    <div class="cfooter">Ledgera Global, Inc. &nbsp;&middot;&nbsp; Institutional Understanding &nbsp;&middot;&nbsp; Supplements MSA &nbsp;&middot;&nbsp; <strong id="iou-footer-email">Enter client email above</strong></div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="signModal">
+  <div class="modal">
+    <h2>Send via Firma.dev</h2>
+    <p class="msub">A PDF will be generated and sent to the client. They'll receive a signing link by email and can sign from any device.</p>
+    <div class="firma-badge"><div class="dot"></div>Sending via Firma.dev API &middot; ESIGN & UETA Compliant</div>
+    <div class="mf"><label>Client Company</label><input type="text" id="modalCompany" placeholder="Company name"/></div>
+    <div class="mf"><label>Client Full Name</label><input type="text" id="modalContact" placeholder="First Last (for signature line)"/></div>
+    <div class="mf"><label>Client Email</label><input type="email" id="modalEmail" placeholder="client@company.com"/></div>
+    <div class="mf"><label for="modalDocType">Document</label><input type="text" id="modalDocType" class="mf-readonly" readonly aria-label="Document"/></div>
+    <div class="mf"><label for="modalState">Governing State</label><input type="text" id="modalState" class="mf-readonly" readonly aria-label="Governing State"/></div>
+    <div class="modal-actions">
+      <button class="mc" id="modalConfirmBtn" onclick="submitContract()">Send via Firma.dev</button>
+      <button class="mcancel" onclick="closeModal()">Cancel</button>
+    </div>
+    <div class="merr" id="modalErr"></div>
+  </div>
+</div>
+
+<script>
+  var cCompany = "", cEmail = "", cState = "Delaware", cLocs = 1;
+  var acHL = -1, acItems = [];
+  var docLabels = { msa: "Master Service Agreement", nda: "Non-Disclosure Agreement", loi: "Letter of Intent", iou: "Institutional Understanding" };
+  var clientDB = [
+    { name: "Apex HVAC Services",       email: "admin@apexhvac.com",        state: "Texas" },
+    { name: "BlueSky Plumbing Co.",      email: "billing@blueskyplumb.com",  state: "Florida" },
+    { name: "Cardinal Electrical Group", email: "ops@cardinalelec.com",      state: "Ohio" },
+    { name: "Delta Roofing LLC",         email: "contracts@deltaroofing.com",state: "Georgia" },
+    { name: "Eagle Eye Pest Control",    email: "info@eagleeye.com",         state: "Arizona" },
+    { name: "Gulf Coast Mechanical",     email: "accounting@gcmech.com",     state: "Texas" },
+    { name: "Harbor Cleaning Services",  email: "hr@harborclean.com",        state: "California" },
+  ];
+
+  (function init() {
+    var p = new URLSearchParams(window.location.search);
+    if (p.get("clientName"))  { cCompany = p.get("clientName");  document.getElementById("companyInput").value = cCompany; }
+    if (p.get("clientEmail")) { cEmail   = p.get("clientEmail"); document.getElementById("emailInput").value   = cEmail; }
+    if (p.get("state"))       { cState   = p.get("state");       document.getElementById("stateInput").value   = cState; }
+    if (p.get("locations"))   { cLocs    = parseInt(p.get("locations"), 10) || 1; document.getElementById("locInput").value = cLocs; }
+    applySetup();
+    fetch("/companies/list").then(function(r) { return r.ok ? r.json() : null; }).then(function(d) {
+      if (d && Array.isArray(d)) clientDB = d.map(function(c) { return { name: c.name, email: c.email || "", state: c.state || "Delaware" }; });
+    }).catch(function() {});
+  })();
+
+  function switchTab(doc, el) {
+    document.querySelectorAll(".doc-section").forEach(function(s) { s.classList.remove("active"); });
+    document.querySelectorAll(".doc-tab").forEach(function(t) { t.classList.remove("active"); });
+    document.getElementById("sec-" + doc).classList.add("active");
+    el.classList.add("active");
+  }
+
+  function applySetup() {
+    cCompany = document.getElementById("companyInput").value.trim() || cCompany;
+    cEmail   = document.getElementById("emailInput").value.trim()   || cEmail;
+    cState   = document.getElementById("stateInput").value          || cState;
+    cLocs    = parseInt(document.getElementById("locInput").value, 10) || 1;
+    var today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    var roles = { msa: "Client", nda: "Recipient", loi: "Prospective Client", iou: "Institution" };
+    ["msa","nda","loi","iou"].forEach(function(doc) {
+      var role = roles[doc];
+      setText(doc+"-date", "Effective Date: "+today);
+      setText(doc+"-intro-date", today);
+      setText(doc+"-sig-date", today);
+      setText(doc+"-sig-client", cCompany || role);
+      setText(doc+"-sig-party", (cCompany||role)+" \u00B7 "+cState+" Corporation");
+      setText(doc+"-footer-email", cEmail || "Enter client email above");
+      var el = document.getElementById(doc+"-client");
+      if (el && cCompany) el.textContent = cCompany;
+    });
+    setText("msa-state", cState); setText("msa-sc1", cState);
+    setText("msa-setup", "$"+(2500*cLocs).toLocaleString());
+    setText("msa-monthly", "$"+(1250*cLocs).toLocaleString()+"/mo");
+    setText("msa-loc-header", cLocs+" Location"+(cLocs>1?"s":"")+" Total");
+    setText("nda-state", cState); setText("loi-state", cState);
+    setText("iou-poc-header", cCompany || "Institution");
+  }
+
+  function setText(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+
+  function syncName(doc) {
+    var el = document.getElementById(doc+"-client");
+    var val = el.textContent.trim();
+    cCompany = val;
+    document.getElementById("companyInput").value = val;
+    var roles = { msa: "Client", nda: "Recipient", loi: "Prospective Client", iou: "Institution" };
+    ["msa","nda","loi","iou"].forEach(function(d) {
+      setText(d+"-sig-client", val||roles[d]);
+      setText(d+"-sig-party", (val||roles[d])+" \u00B7 "+cState+" Corporation");
+      var o = document.getElementById(d+"-client");
+      if (o && d !== doc && val) o.textContent = val;
+    });
+    setText("iou-poc-header", val || "Institution");
+  }
+
+  function onCI() {
+    var val = document.getElementById("companyInput").value.toLowerCase().trim();
+    var list = document.getElementById("acList"); acHL = -1;
+    if (!val) { list.innerHTML = ""; list.classList.remove("open"); return; }
+    acItems = clientDB.filter(function(c) { return c.name.toLowerCase().indexOf(val) !== -1; });
+    if (!acItems.length) { list.innerHTML = ""; list.classList.remove("open"); return; }
+    list.innerHTML = acItems.map(function(c,i) {
+      return '<div class="ac-item" onmousedown="pickCompany('+i+')">'
+        +'<div>'+esc(c.name)+'</div>'+(c.email?'<div class="ac-sub">'+esc(c.email)+'</div>':'')+'</div>';
+    }).join("");
+    list.classList.add("open");
+  }
+
+  function onCF() { if (document.getElementById("companyInput").value.trim()) onCI(); }
+  function onCB() { setTimeout(function() { document.getElementById("acList").classList.remove("open"); }, 160); }
+  function onCK(e) {
+    var items = document.getElementById("acList").querySelectorAll(".ac-item");
+    if (e.key==="ArrowDown") { e.preventDefault(); acHL=Math.min(acHL+1,items.length-1); hlAC(items); }
+    else if (e.key==="ArrowUp") { e.preventDefault(); acHL=Math.max(acHL-1,0); hlAC(items); }
+    else if (e.key==="Enter") { e.preventDefault(); if (acHL>=0&&acItems[acHL]) pickCompany(acHL); else { document.getElementById("acList").classList.remove("open"); applySetup(); } }
+    else if (e.key==="Escape") { document.getElementById("acList").classList.remove("open"); }
+  }
+  function hlAC(items) { items.forEach(function(el,i) { el.classList.toggle("hl", i===acHL); }); }
+  function pickCompany(i) {
+    var c = acItems[i]; if (!c) return;
+    document.getElementById("companyInput").value = c.name;
+    if (c.email) document.getElementById("emailInput").value = c.email;
+    if (c.state) document.getElementById("stateInput").value = c.state;
+    document.getElementById("acList").classList.remove("open");
+    applySetup();
+  }
+
+  function openModal(doc) {
+    var company = cCompany || document.getElementById(doc+"-client").textContent.trim();
+    var email   = cEmail   || document.getElementById("emailInput").value.trim();
+    if (!company) { showErr(doc, "Please enter the client company name."); return; }
+    if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) { showErr(doc, "Please enter a valid client email address."); return; }
+    document.getElementById("modalCompany").value  = company;
+    document.getElementById("modalContact").value  = "";
+    document.getElementById("modalEmail").value    = email;
+    document.getElementById("modalDocType").value  = docLabels[doc];
+    document.getElementById("modalState").value    = cState;
+    document.getElementById("modalErr").style.display = "none";
+    document.getElementById("modalConfirmBtn").disabled    = false;
+    document.getElementById("modalConfirmBtn").textContent = "Send via Firma.dev";
+    document.getElementById("signModal").dataset.doc = doc;
+    document.getElementById("signModal").classList.add("open");
+  }
+
+  function closeModal() { document.getElementById("signModal").classList.remove("open"); }
+  document.getElementById("signModal").addEventListener("click", function(e) { if (e.target===this) closeModal(); });
+
+  function submitContract() {
+    var company = document.getElementById("modalCompany").value.trim();
+    var contact = document.getElementById("modalContact").value.trim();
+    var email   = document.getElementById("modalEmail").value.trim();
+    var doc     = document.getElementById("signModal").dataset.doc || "msa";
+    var btn     = document.getElementById("modalConfirmBtn");
+    var errEl   = document.getElementById("modalErr");
+
+    if (!company || !email) { errEl.style.display="block"; errEl.textContent="Company and email are required."; return; }
+    if (!contact)           { errEl.style.display="block"; errEl.textContent="Please enter the client's full name."; return; }
+
+    btn.disabled = true; btn.textContent = "Sending..."; errEl.style.display = "none";
+
+    fetch("/contracts/firma/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientName: company, clientContact: contact, clientEmail: email, state: cState, locationCount: cLocs, monthlyFee: 1250*cLocs, setupFee: 2500*cLocs, documentType: doc, documentLabel: docLabels[doc] })
+    })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+    .then(function(result) {
+      closeModal();
+      if (result.ok) {
+        showOk(doc, "Document sent to "+email+" via Firma.dev. They will receive a signing link shortly.");
+        var sb = document.getElementById(doc+"SignBtn");
+        if (sb) { sb.disabled=true; sb.querySelector("span").textContent=docLabels[doc].split(" ")[0]+" Sent \u2713"; }
+        if (result.data.signingUrl) {
+          var ld = document.getElementById(doc+"-firma-link");
+          ld.querySelector("a").href = result.data.signingUrl;
+          ld.style.display = "block";
+        }
+      } else {
+        showErr(doc, "Error: "+(result.data.error||"Unknown error"));
+      }
+    })
+    .catch(function(err) { closeModal(); showErr(doc, "Network error: "+err.message); });
+  }
+
+  function showOk(doc, msg) { var el=document.getElementById(doc+"-status"); el.textContent="\u2705 "+msg; el.style.display="block"; document.getElementById(doc+"-error").style.display="none"; el.scrollIntoView({behavior:"smooth",block:"center"}); }
+  function showErr(doc, msg) { var el=document.getElementById(doc+"-error"); el.textContent=msg; el.style.display="block"; document.getElementById(doc+"-status").style.display="none"; el.scrollIntoView({behavior:"smooth",block:"center"}); }
+  function esc(s) { return String(s).replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">"); }
+</script>
+</body>
+</html>
