@@ -1,45 +1,24 @@
-import Stripe from "stripe";
 import { Request, Response, Router } from "express";
+import type { Stripe as StripeType } from "stripe";
 import { prisma } from "../prismaClient";
 
-type StripeEvent = {
-  id: string;
-  type: string;
-  data: {
-    object: Record<string, unknown>;
-  };
-};
-
-type StripeInvoice = {
-  id: string;
-  customer: string | null;
-  amount_paid: number;
-  amount_due: number;
-  attempt_count: number;
-  description?: string | null;
-  metadata?: Record<string, unknown>;
-};
-
-type StripeCustomer = {
-  id: string;
-  email?: string | null;
-  name?: string | null;
-};
-
-type StripePaymentIntent = {
-  id: string;
-  customer: string | null;
-  amount_received: number;
-  amount: number;
-  description?: string | null;
-  last_payment_error?: {
-    message?: string | null;
-  } | null;
-};
-
 const router = Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
+
+// ── Lazy Stripe initialisation (won't crash at module load) ─────
+
+function getStripeClient(): StripeType | null {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Stripe = require("stripe");
+  return new Stripe(key) as StripeType;
+}
+
+function getWebhookSecret(): string {
+  return process.env.STRIPE_WEBHOOK_SECRET || "";
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
 
 function cents(amount: number | null | undefined): string {
   if (!amount) return "$0.00";
@@ -76,14 +55,12 @@ function extractJobIdFromText(text: string | null | undefined): string | null {
 }
 
 async function resolveJobIdFromInvoice(
-  invoice: StripeInvoice,
+  invoice: { metadata?: Record<string, unknown>; description?: string | null },
   companyId: string
 ): Promise<string | null> {
   const metaJobId =
     typeof invoice.metadata?.jobId === "string" ? invoice.metadata.jobId : null;
-
   const descJobId = extractJobIdFromText(invoice.description);
-
   const candidate = metaJobId ?? descJobId;
   if (!candidate) return null;
 
@@ -91,35 +68,43 @@ async function resolveJobIdFromInvoice(
     where: { id: candidate, companyId },
     select: { id: true },
   });
-
   return job?.id ?? null;
 }
 
+// ── Webhook route ────────────────────────────────────────────────
+
 router.post("/", async (req: Request, res: Response) => {
+  const stripe = getStripeClient();
+  const webhookSecret = getWebhookSecret();
+
+  if (!stripe || !webhookSecret) {
+    return res.status(503).json({
+      error: "Stripe is not configured (STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET)",
+    });
+  }
+
   const sig = req.headers["stripe-signature"] as string;
 
-  let event: StripeEvent;
+  // --- Verify signature ---
+  let event: { id: string; type: string; data: { object: Record<string, unknown> } };
   try {
-    const rawEvent = stripe.webhooks.constructEvent(req.body, sig, WEBHOOK_SECRET) as {
+    const raw = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      webhookSecret
+    ) as unknown as {
       id: string;
       type: string;
-      data: {
-        object: unknown;
-      };
+      data: { object: Record<string, unknown> };
     };
-    event = {
-      id: rawEvent.id,
-      type: rawEvent.type,
-      data: {
-        object: rawEvent.data.object as Record<string, unknown>,
-      },
-    };
+    event = raw;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[Stripe] Webhook signature verification failed:", message);
     return res.status(400).json({ error: "Invalid webhook signature" });
   }
 
+  // --- Deduplicate ---
   try {
     const existing = await prisma.stripeEvent.findUnique({
       where: { stripeEventId: event.id },
@@ -128,13 +113,8 @@ router.post("/", async (req: Request, res: Response) => {
       console.log(`[Stripe] Duplicate event skipped: ${event.id}`);
       return res.sendStatus(200);
     }
-
     await prisma.stripeEvent.create({
-      data: {
-        stripeEventId: event.id,
-        type: event.type,
-        processed: false,
-      },
+      data: { stripeEventId: event.id, type: event.type, processed: false },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -142,10 +122,19 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Event recording failed" });
   }
 
+  // --- Handle event ---
+  const obj = event.data.object;
+
   try {
     switch (event.type) {
       case "invoice.paid": {
-        const invoice = event.data.object as StripeInvoice;
+        const invoice = obj as {
+          id: string;
+          customer: string | null;
+          amount_paid: number;
+          description?: string | null;
+          metadata?: Record<string, unknown>;
+        };
         const amount = cents(invoice.amount_paid);
         const custId = invoice.customer as string;
 
@@ -160,10 +149,8 @@ router.post("/", async (req: Request, res: Response) => {
         const company = await prisma.company.findFirst({
           where: { stripeCustomerId: custId },
         });
-
         if (company) {
           const jobId = await resolveJobIdFromInvoice(invoice, company.id);
-
           await prisma.payment.create({
             data: {
               companyId: company.id,
@@ -173,12 +160,10 @@ router.post("/", async (req: Request, res: Response) => {
               recovered: true,
             },
           });
-
           await prisma.company.update({
             where: { id: company.id },
             data: { subscriptionStatus: "active" },
           });
-
           console.log(
             `[Stripe] Payment recorded for ${company.name}: ${amount}${
               jobId ? ` (linked jobId=${jobId})` : ""
@@ -189,98 +174,89 @@ router.post("/", async (req: Request, res: Response) => {
       }
 
       case "invoice.payment_failed": {
-        const invoice = event.data.object as StripeInvoice;
+        const invoice = obj as {
+          id: string;
+          customer: string | null;
+          amount_due: number;
+          attempt_count: number;
+        };
         const custId = invoice.customer as string;
-        const amount = cents(invoice.amount_due);
-
         logEvent("invoice.payment_failed", {
           invoiceId: invoice.id,
           customer: custId,
-          amount,
+          amount: cents(invoice.amount_due),
           attemptCount: invoice.attempt_count,
         });
-
         const company = await prisma.company.findFirst({
           where: { stripeCustomerId: custId },
         });
-
         if (company) {
           await prisma.company.update({
             where: { id: company.id },
             data: { subscriptionStatus: "past_due" },
           });
-
           console.warn(
-            `[Stripe] Payment FAILED for ${company.name}: ${amount} (attempt ${invoice.attempt_count})`
+            `[Stripe] Payment FAILED for ${company.name}: ${cents(invoice.amount_due)} (attempt ${invoice.attempt_count})`
           );
         }
         break;
       }
 
       case "invoice.marked_uncollectible": {
-        const invoice = event.data.object as StripeInvoice;
+        const invoice = obj as { id: string; customer: string | null; amount_due: number };
         const custId = invoice.customer as string;
-
         logEvent("invoice.marked_uncollectible", {
           invoiceId: invoice.id,
           customer: custId,
           amount: cents(invoice.amount_due),
         });
-
         const company = await prisma.company.findFirst({
           where: { stripeCustomerId: custId },
         });
-
         if (company) {
           await prisma.company.update({
             where: { id: company.id },
             data: { subscriptionStatus: "unpaid" },
           });
-
           console.warn(`[Stripe] Invoice marked UNCOLLECTIBLE for ${company.name}`);
         }
         break;
       }
 
       case "invoice.overdue": {
-        const invoice = event.data.object as StripeInvoice;
+        const invoice = obj as { id: string; customer: string | null; amount_due: number };
         const custId = invoice.customer as string;
-
         logEvent("invoice.overdue", {
           invoiceId: invoice.id,
           customer: custId,
           amount: cents(invoice.amount_due),
         });
-
         const company = await prisma.company.findFirst({
           where: { stripeCustomerId: custId },
         });
-
         if (company) {
           await prisma.company.update({
             where: { id: company.id },
             data: { subscriptionStatus: "past_due" },
           });
-
-          console.warn(`[Stripe] Invoice OVERDUE for ${company.name}: ${cents(invoice.amount_due)}`);
+          console.warn(
+            `[Stripe] Invoice OVERDUE for ${company.name}: ${cents(invoice.amount_due)}`
+          );
         }
         break;
       }
 
       case "customer.created": {
-        const customer = event.data.object as StripeCustomer;
-
+        const customer = obj as { id: string; email?: string | null; name?: string | null };
         logEvent("customer.created", {
           customerId: customer.id,
           email: customer.email,
           name: customer.name,
         });
-
         if (customer.email) {
           const company = await prisma.company.findFirst({
             where: { stripeCustomerId: customer.id },
           });
-
           if (company && !company.stripeCustomerId) {
             await prisma.company.update({
               where: { id: company.id },
@@ -292,17 +268,14 @@ router.post("/", async (req: Request, res: Response) => {
       }
 
       case "customer.deleted": {
-        const customer = event.data.object as StripeCustomer;
-
+        const customer = obj as { id: string; email?: string | null };
         logEvent("customer.deleted", {
           customerId: customer.id,
           email: customer.email,
         });
-
         const company = await prisma.company.findFirst({
           where: { stripeCustomerId: customer.id },
         });
-
         if (company) {
           await prisma.company.update({
             where: { id: company.id },
@@ -312,29 +285,29 @@ router.post("/", async (req: Request, res: Response) => {
               stripeSubId: null,
             },
           });
-
           console.warn(`[Stripe] Customer DELETED — ${company.name} cancelled`);
         }
         break;
       }
 
       case "payment_intent.succeeded": {
-        const pi = event.data.object as StripePaymentIntent;
+        const pi = obj as {
+          id: string;
+          customer: string | null;
+          amount_received: number;
+          description?: string | null;
+        };
         const custId = pi.customer as string | null;
-        const amount = cents(pi.amount_received);
-
         logEvent("payment_intent.succeeded", {
           paymentIntentId: pi.id,
           customer: custId,
-          amount,
+          amount: cents(pi.amount_received),
           description: pi.description,
         });
-
         if (custId) {
           const company = await prisma.company.findFirst({
             where: { stripeCustomerId: custId },
           });
-
           if (company) {
             await prisma.payment.create({
               data: {
@@ -344,30 +317,31 @@ router.post("/", async (req: Request, res: Response) => {
                 recovered: true,
               },
             });
-
-            console.log(`[Stripe] Setup fee received from ${company.name}: ${amount}`);
+            console.log(`[Stripe] Setup fee received from ${company.name}: ${cents(pi.amount_received)}`);
           }
         }
         break;
       }
 
       case "payment_intent.payment_failed": {
-        const pi = event.data.object as StripePaymentIntent;
+        const pi = obj as {
+          id: string;
+          customer: string | null;
+          amount: number;
+          last_payment_error?: { message?: string | null } | null;
+        };
         const custId = pi.customer as string | null;
         const error = pi.last_payment_error?.message ?? "Unknown error";
-
         logEvent("payment_intent.payment_failed", {
           paymentIntentId: pi.id,
           customer: custId,
           amount: cents(pi.amount),
           error,
         });
-
         if (custId) {
           const company = await prisma.company.findFirst({
             where: { stripeCustomerId: custId },
           });
-
           if (company) {
             console.warn(
               `[Stripe] Setup fee FAILED for ${company.name}: ${cents(pi.amount)} — ${error}`
