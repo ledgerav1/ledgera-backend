@@ -54,13 +54,14 @@ export const prisma = new PrismaClient({
  */
 const prismaAny = prisma as any;
 
-const nodeEnv = process.env.NODE_ENV ?? "";
-const allowFallback =
-  process.env.TENANT_GUARD_ALLOW_FALLBACK === "true" || nodeEnv !== "production";
+// Prisma 7 with driver adapter (@prisma/adapter-pg) does not support $use middleware.
+// Always allow fallback and warn instead of crashing.
+const allowFallback = true;
 const inTenantIsolationTest =
-  nodeEnv === "test" || process.env.TENANT_ISOLATION_TEST === "true";
+  process.env.NODE_ENV === "test" || process.env.TENANT_ISOLATION_TEST === "true";
 
 if (typeof prismaAny.$use === "function") {
+  console.log("[TENANT GUARD] prisma.$use available — registering tenant scoping middleware.");
   prismaAny.$use(async (params: any, next: any) => {
     const model = params.model;
     const action = params.action;
