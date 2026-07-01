@@ -17,6 +17,7 @@ import executiveDashboardRouter from "./routes/executiveDashboard";
 import express from "express";
 import firmaRouter from "./routes/firmaContracts";
 import helmet from "helmet";
+import integrationSyncRouter from "./routes/integrationSync";
 import integrationsRouter from "./routes/integrations";
 import invoicesRouter from "./routes/invoices";
 import jobsRouter from "./routes/jobs";
@@ -104,7 +105,10 @@ function corsOrigin(
 app.use(
   cors({
     origin: corsOrigin,
-    credentials: false,
+    // Must be true to accept credentials: "include" from frontend fetch() calls.
+    // The proxy approach (nextjs → express) avoids browser CORS for auth,
+    // but other cross-origin dashboard API calls may still need this.
+    credentials: true,
   })
 );
 
@@ -130,6 +134,7 @@ app.use("/onboard", onboardRouter);
 app.use("/payments", paymentsRouter);
 app.use("/billing", billingRouter);
 app.use("/analytics", analyticsRouter);
+app.use("/integrations", integrationSyncRouter);
 app.use("/integrations", integrationsRouter);
 app.use("/accounting", accountingRouter);
 app.use("/contracts/firma", firmaRouter);
